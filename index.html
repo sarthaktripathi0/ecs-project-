@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone Charging Station Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <h1>Charging Station <span>Arduino Nano / 3 x USB-C</span></h1>
+  <div class="bar-actions">
+    <span id="clock" class="mono dim"></span>
+    <button id="theme" class="btn" aria-label="Toggle dark mode">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11" /><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="grid">
+  <div class="col">
+    <section class="panel">
+      <h2>Schematic</h2>
+      <div class="scroll" tabindex="0" role="region" aria-label="Circuit schematic, scrolls horizontally">
+        <svg id="sch" viewBox="0 0 740 400" role="img" aria-label="Circuit: 12V adapter feeds Arduino Nano and LM2596; 5V passes through three relays to three USB-C ports"></svg>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Ports</h2>
+      <div id="ports" class="ports"></div>
+    </section>
+
+    <section class="panel">
+      <div class="tabs" role="tablist" aria-label="Instruments">
+        <button role="tab" class="tab" data-tab="chart" aria-selected="true">Chart</button>
+        <button role="tab" class="tab" data-tab="serial" aria-selected="false">Serial</button>
+        <button role="tab" class="tab" data-tab="code" aria-selected="false">Sketch</button>
+      </div>
+      <div id="tab-chart" class="pane">
+        <canvas id="chart" aria-label="Battery percent and current over time"></canvas>
+        <p class="legend mono"><i style="--c:var(--ink)"></i>P1 % <i style="--c:var(--accent)"></i>P2 % <i style="--c:var(--ok)"></i>P3 % <i class="d" style="--c:var(--muted)"></i>total mA</p>
+      </div>
+      <div id="tab-serial" class="pane" hidden>
+        <pre id="serial" class="serial" tabindex="0" role="log" aria-label="Serial monitor"></pre>
+        <button id="clear" class="btn small">Clear</button>
+      </div>
+      <div id="tab-code" class="pane" hidden>
+        <pre class="serial code" tabindex="0"><code id="sketch"></code></pre>
+      </div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="panel">
+      <h2>Readouts</h2>
+      <dl class="ros">
+        <div class="ro"><dt>VIN</dt><dd id="r-vin"></dd></div>
+        <div class="ro"><dt>5V rail</dt><dd id="r-vout"></dd></div>
+        <div class="ro"><dt>Current</dt><dd id="r-i"></dd></div>
+        <div class="ro"><dt>Power</dt><dd id="r-p"></dd></div>
+        <div class="ro"><dt>Energy</dt><dd id="r-e"></dd></div>
+        <div class="ro"><dt>Nano</dt><dd id="r-mcu"></dd></div>
+      </dl>
+    </section>
+
+    <section class="panel">
+      <h2>Mode</h2>
+      <fieldset class="seg" aria-label="Charging mode">
+        <label><input type="radio" name="mode" value="health"><span>Battery health</span></label>
+        <label><input type="radio" name="mode" value="timer"><span>Timer</span></label>
+        <label><input type="radio" name="mode" value="full"><span>Full charge</span></label>
+        <label><input type="radio" name="mode" value="manual"><span>Manual</span></label>
+      </fieldset>
+      <div class="row" data-for="health"><label for="hi">Cut at</label><input type="range" id="hi" min="60" max="100"><output id="hi-o" for="hi"></output></div>
+      <div class="row" data-for="health"><label for="lo">Resume at</label><input type="range" id="lo" min="5" max="40"><output id="lo-o" for="lo"></output></div>
+      <div class="row" data-for="timer"><label for="tm">Charge for</label><input type="range" id="tm" min="5" max="120" step="5"><output id="tm-o" for="tm"></output></div>
+      <div class="row" data-for="full"><label for="cut">Cut-off below</label><input type="range" id="cut" min="50" max="400" step="10"><output id="cut-o" for="cut"></output></div>
+      <p class="note" data-for="manual">Use the Manual relay switch on each port.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Time</h2>
+      <fieldset class="seg" aria-label="Simulation speed">
+        <label><input type="radio" name="speed" value="1"><span>1x</span></label>
+        <label><input type="radio" name="speed" value="10"><span>10x</span></label>
+        <label><input type="radio" name="speed" value="60"><span>60x</span></label>
+      </fieldset>
+      <div class="btns">
+        <button id="pause" class="btn"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3v10M11 3v10"/></svg> <span>Pause</span></button>
+        <button id="reset" class="btn"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8a5 5 0 1 0 1.8-3.8M3 2v3h3"/></svg> Reset</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Fault injection</h2>
+      <label class="line"><span>Input brownout<small>VIN sags to 6.2 V; Nano resets</small></span><input type="checkbox" class="sw f" data-fault="brown"></label>
+      <label class="line"><span>CC resistors missing<small>Phone sees no source, draws 0 mA</small></span><input type="checkbox" class="sw f" data-fault="nocc"></label>
+      <label class="line"><span>Overcurrent<small>Short draws 3.6 A, trip at 3.0 A</small></span><input type="checkbox" class="sw f" data-fault="oc"></label>
+      <label class="line"><span>LM2596 miscalibrated<small>Output 5.4 V, limit 5.25 V</small></span><input type="checkbox" class="sw f" data-fault="miscal"></label>
+    </section>
+  </div>
+</main>
+<script src="script.js"></script>
+</body>
+</html>
