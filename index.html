@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Phone Charging Station Simulator</title>
+<title>ChargeLab — Charging Station Simulator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -11,26 +11,42 @@
 </head>
 <body>
 <header class="bar">
-  <h1>Charging Station <span>Arduino Nano / 3 x USB-C</span></h1>
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+    <div>
+      <p class="eyebrow">CHARGELAB / SIMULATOR</p>
+      <h1>Charging station <span>Arduino Nano · 3 USB-C ports</span></h1>
+    </div>
+  </div>
   <div class="bar-actions">
+    <span class="live-indicator"><i></i> SIMULATION LIVE</span>
     <span id="clock" class="mono dim"></span>
-    <button id="theme" class="btn" aria-label="Toggle dark mode">
+    <button id="theme" class="btn icon-btn" aria-label="Toggle dark mode">
       <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11" /><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/></svg>
     </button>
   </div>
 </header>
 
-<main class="grid">
+<main class="app-shell">
+  <section class="welcome">
+    <div>
+      <p class="eyebrow">POWER MANAGEMENT</p>
+      <h2>Station overview</h2>
+      <p class="welcome-copy">Monitor charging, tune behavior, and test electrical faults in a safe simulation.</p>
+    </div>
+    <div class="welcome-tag"><span class="welcome-dot"></span> 3-port system</div>
+  </section>
+  <div class="grid">
   <div class="col">
     <section class="panel">
-      <h2>Schematic</h2>
+      <h2>Circuit schematic <span class="section-hint">INTERACTIVE</span></h2>
       <div class="scroll" tabindex="0" role="region" aria-label="Circuit schematic, scrolls horizontally">
         <svg id="sch" viewBox="0 0 740 400" role="img" aria-label="Circuit: 12V adapter feeds Arduino Nano and LM2596; 5V passes through three relays to three USB-C ports"></svg>
       </div>
     </section>
 
     <section class="panel">
-      <h2>Ports</h2>
+      <h2>Charging ports <span class="section-hint">3 CHANNELS</span></h2>
       <div id="ports" class="ports"></div>
     </section>
 
@@ -56,7 +72,7 @@
 
   <div class="col">
     <section class="panel">
-      <h2>Readouts</h2>
+      <h2>Live telemetry</h2>
       <dl class="ros">
         <div class="ro"><dt>VIN</dt><dd id="r-vin"></dd></div>
         <div class="ro"><dt>5V rail</dt><dd id="r-vout"></dd></div>
@@ -68,7 +84,7 @@
     </section>
 
     <section class="panel">
-      <h2>Mode</h2>
+      <h2>Charging behavior</h2>
       <fieldset class="seg" aria-label="Charging mode">
         <label><input type="radio" name="mode" value="health"><span>Battery health</span></label>
         <label><input type="radio" name="mode" value="timer"><span>Timer</span></label>
@@ -83,7 +99,7 @@
     </section>
 
     <section class="panel">
-      <h2>Time</h2>
+      <h2>Simulation controls</h2>
       <fieldset class="seg" aria-label="Simulation speed">
         <label><input type="radio" name="speed" value="1"><span>1x</span></label>
         <label><input type="radio" name="speed" value="10"><span>10x</span></label>
@@ -96,13 +112,14 @@
     </section>
 
     <section class="panel">
-      <h2>Fault injection</h2>
+      <h2>Fault testing <span class="section-hint">ADVANCED</span></h2>
       <label class="line"><span>Input brownout<small>VIN sags to 6.2 V; Nano resets</small></span><input type="checkbox" class="sw f" data-fault="brown"></label>
       <label class="line"><span>CC resistors missing<small>Phone sees no source, draws 0 mA</small></span><input type="checkbox" class="sw f" data-fault="nocc"></label>
       <label class="line"><span>Overcurrent<small>Short draws 3.6 A, trip at 3.0 A</small></span><input type="checkbox" class="sw f" data-fault="oc"></label>
       <label class="line"><span>LM2596 miscalibrated<small>Output 5.4 V, limit 5.25 V</small></span><input type="checkbox" class="sw f" data-fault="miscal"></label>
     </section>
   </div>
+</div>
 </main>
 <script src="script.js"></script>
 </body>
