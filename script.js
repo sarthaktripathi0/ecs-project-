@@ -200,11 +200,17 @@ function drawSch() {
 /* ================= ports UI ================= */
 const portsEl = $('#ports');
 for (let k = 0; k < 3; k++) portsEl.insertAdjacentHTML('beforeend', `
-  <article class="port"><header><b>PORT ${k + 1}</b><span class="mono dim">D${k + 2}</span><span class="badge" id="st${k}"></span></header>
-  <label class="line"><span>Phone connected</span><input type="checkbox" class="sw" id="ph${k}"></label>
-  <label class="line rng"><span>Battery</span><input type="range" id="sc${k}" min="0" max="100"><output id="so${k}"></output></label>
-  <label class="line"><span>Manual relay</span><input type="checkbox" class="sw" id="mn${k}"></label>
-  <dl class="mini"><div><dt>V</dt><dd id="pv${k}"></dd></div><div><dt>mA</dt><dd id="pi${k}"></dd></div><div><dt>W</dt><dd id="pw${k}"></dd></div><div><dt>Wh</dt><dd id="pe${k}"></dd></div></dl></article>`);
+  <article class="port" id="pt${k}">
+    <div class="port-top">
+      <div class="ring off" id="rg${k}"><b id="pc${k}">—</b></div>
+      <div class="port-id"><h3>Port ${k + 1}</h3><span class="pin">Arduino pin D${k + 2}</span><br><span class="badge" id="st${k}"></span></div>
+    </div>
+    <p class="why" id="sx${k}"></p>
+    <label class="line"><span>Phone plugged in</span><input type="checkbox" class="sw" id="ph${k}"></label>
+    <label class="line rng"><span>Battery level</span><input type="range" id="sc${k}" min="0" max="100"><output id="so${k}"></output></label>
+    <label class="line"><span>Relay switch <small>Only usable in Manual mode</small></span><input type="checkbox" class="sw" id="mn${k}"></label>
+    <dl class="mini"><div><dt>Volts</dt><dd id="pv${k}"></dd></div><div><dt>mA</dt><dd id="pi${k}"></dd></div><div><dt>Watts</dt><dd id="pw${k}"></dd></div><div><dt>Wh</dt><dd id="pe${k}"></dd></div></dl>
+  </article>`);
 for (let k = 0; k < 3; k++) {
   $('#ph' + k).onchange = e => { if (S.ports[k].phone !== e.target.checked) togglePhone(k); };
   $('#sc' + k).oninput = e => { S.ports[k].soc = +e.target.value; };
@@ -219,7 +225,7 @@ function drawChart() {
   const g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0);
   const w = r.width, h = r.height, L = 32, R = 44, Tp = 8, B = 18, pw = w - L - R, ph = h - Tp - B;
   const cs = getComputedStyle(document.documentElement), col = n => cs.getPropertyValue(n).trim();
-  g.clearRect(0, 0, w, h); g.font = '10px "IBM Plex Mono",monospace'; g.lineWidth = 1;
+  g.clearRect(0, 0, w, h); g.font = '10px "DM Mono",monospace'; g.lineWidth = 1;
   for (let i = 0; i <= 4; i++) { const y = Tp + ph * i / 4;
     g.strokeStyle = col('--line'); g.beginPath(); g.moveTo(L, y + .5); g.lineTo(w - R, y + .5); g.stroke();
     g.fillStyle = col('--muted'); g.textAlign = 'right'; g.fillText(100 - 25 * i, L - 4, y + 3);
@@ -285,11 +291,45 @@ ${logic}
 }`;
 }
 
+/* ================= plain-language explanations ================= */
+const WHY = {
+  'CC CHARGE': 'Charging at full speed. The phone is pulling as much current as it safely can.',
+  TAPER: 'Nearly full, so the phone is easing off the current to protect its battery.',
+  HOLD: 'Paused on purpose at the upper limit. Staying below 100% helps the battery last longer.',
+  IDLE: 'Waiting. Charging will begin when the current rules allow it.',
+  DONE: 'Finished. The current tapered off, so the Arduino cut the power.',
+  'TIMER END': 'The charging time is up, so the relay has switched power off.',
+  EMPTY: 'No phone plugged in, so this port stays off.',
+  'LIVE NO LOAD': 'The port is powered, but nothing is drawing current from it.',
+  'NO CC': 'The relay is on, but the phone does not see a power source. Check the 5.1 kΩ resistors.',
+  OVERCURRENT: 'Too much current! The relay opened and stays locked off until the fault is cleared.',
+  OVERVOLT: 'Voltage too high! The relay opened and stays locked off until the fault is cleared.',
+  'MCU OFF': 'The Arduino is resetting, so every relay is open for now.',
+  'RELAY OFF': 'Manual mode: flip this port\'s relay switch to start charging.'
+};
+const MODE_DESC = {
+  health: () => `Stops at ${S.hi}% and starts again once the phone drops to ${S.lo}%. Lithium batteries live longer when they avoid sitting at 100%.`,
+  timer: () => `Charges each phone for ${S.timerMin} minutes, then cuts power. Handy for a quick top-up.`,
+  full: () => `Charges all the way, then cuts power once the current tapers below ${S.cutMA} mA, which is how a phone signals it is full.`,
+  manual: () => 'You are in control. Use the relay switch on each port card to turn power on or off yourself.'
+};
+const fmtTime = ms => { const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
+  return (h ? h + 'h ' : '') + String(m % 60).padStart(h ? 2 : 1, '0') + 'm ' + String(s % 60).padStart(2, '0') + 's'; };
+function narrate() {
+  const I = total('i'), chg = S.ports.filter(p => p.i > 0).length, tripped = S.ports.find(p => p.trip);
+  if (!S.mcu) return 'Input power sagged below 7 V, so the Arduino reset and every relay opened. Nothing is charging.';
+  if (tripped) return `Safety trip on port ${S.ports.indexOf(tripped) + 1}: ${tripped.trip === 'OVERCURRENT' ? 'too much current' : 'voltage too high'}. Its relay is locked open until you clear the fault.`;
+  if (S.faults.nocc && S.ports.some(p => p.phone && p.relay)) return 'Relays are on, but the phones cannot detect a power source, so no current flows.';
+  if (chg) return `${chg} of 3 phone${chg > 1 ? 's are' : ' is'} charging at ${(S.vout * I / 1000).toFixed(1)} W. The Arduino keeps checking each battery and will cut power when the rules say so.`;
+  if (S.ports.some(p => p.phone)) return 'Every plugged-in phone is paused right now. The charging rules are holding power off.';
+  return 'No phones are plugged in yet. Switch one on in the port cards below.';
+}
+
 /* ================= render ================= */
 let lastSketch = '';
 function render() {
   const I = total('i'), cls = { 'CC CHARGE': 'acc', TAPER: 'acc', HOLD: 'ok', DONE: 'ok' };
-  $('#clock').textContent = 'millis() ' + Math.round(S.t);
+  $('#clock').textContent = 'Running ' + fmtTime(S.t);
   $('#r-vin').textContent = S.vin.toFixed(2) + ' V';
   $('#r-vout').textContent = S.vout.toFixed(2) + ' V';
   $('#r-i').textContent = (I / 1000).toFixed(2) + ' A';
@@ -306,7 +346,13 @@ function render() {
     const mn = $('#mn' + k); mn.checked = p.manual; mn.disabled = S.mode !== 'manual';
     $('#pv' + k).textContent = v.toFixed(2); $('#pi' + k).textContent = Math.round(p.i);
     $('#pw' + k).textContent = (v * p.i / 1000).toFixed(2); $('#pe' + k).textContent = p.wh.toFixed(3);
+    const rg = $('#rg' + k); rg.style.setProperty('--p', p.phone ? p.soc : 0);
+    rg.classList.toggle('on', p.i > 0); rg.classList.toggle('off', !p.phone);
+    $('#pc' + k).textContent = p.phone ? Math.round(p.soc) + '%' : '—';
+    $('#sx' + k).textContent = WHY[p.status] || '';
+    const card = $('#pt' + k); card.classList.toggle('charging', p.i > 0); card.classList.toggle('tripped', !!p.trip);
   });
+  const msg = narrate(); if ($('#now').textContent !== msg) $('#now').textContent = msg;
   drawSch();
   if (S.tab === 'chart') drawChart();
   if (S.tab === 'serial' && S.logDirty) { const e = $('#serial'), near = e.scrollHeight - e.scrollTop - e.clientHeight < 30;
@@ -333,7 +379,8 @@ function syncUI() {
   $$('[data-for]').forEach(r => r.hidden = r.dataset.for !== S.mode);
   $('#pause span').textContent = S.paused ? 'Resume' : 'Pause';
   $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === S.tab));
-  ['chart', 'serial', 'code'].forEach(n => $('#tab-' + n).hidden = n !== S.tab);
+  ['chart', 'circuit', 'serial', 'code'].forEach(n => $('#tab-' + n).hidden = n !== S.tab);
+  $('#mode-desc').textContent = MODE_DESC[S.mode]();
   S.logDirty = true; lastSketch = '';
 }
 $$('input[name=mode]').forEach(r => r.onchange = () => { S.mode = r.value; S.ports.forEach(resetPort);
